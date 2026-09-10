@@ -1,0 +1,18 @@
+Qt Classic Styles - Third Party Licenses
+=========================================
+
+qtstyleplugins
+--------------
+Source: https://code.qt.io/qt/qtstyleplugins.git
+       (mirror: https://github.com/qt/qtstyleplugins)
+License: LGPL-2.1 with Digia Qt LGPL Exception 1.1
+Copyright: (C) 2012 Digia Plc and/or its subsidiary(-ies)
+
+The Motif, CDE, Plastique, and Cleanlooks style implementations
+and the shared style helper code are ported from this repository.
+The original code was written as part of the Qt Toolkit by
+the Qt Project and Digia Plc contributors. All source files
+retain their original copyright and license headers.
+
+Local changes: ported from Qt 5 to Qt 6 (API migrations only,
+no behavioral changes).
