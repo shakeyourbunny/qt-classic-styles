@@ -39,6 +39,10 @@
 **
 ****************************************************************************/
 
+// Qt 6 port modifications for the qt-classic-styles Project.
+// Copyright (C) 2026 qt-classic-styles project. Contact: qt-classic-styles-project@trinity2k.net
+// License unchanged from the Qt original above: LGPL-2.1 (Digia Qt LGPL Exception).
+
 #include <QStylePlugin>
 #include "qplastiquestyle.h"
 

@@ -7,12 +7,26 @@ Source: https://code.qt.io/qt/qtstyleplugins.git
        (mirror: https://github.com/qt/qtstyleplugins)
 License: LGPL-2.1 with Digia Qt LGPL Exception 1.1
 Copyright: (C) 2012 Digia Plc and/or its subsidiary(-ies)
+           (C) 2015 The Qt Company Ltd. (shared style helper)
 
-The Motif, CDE, Plastique, and Cleanlooks style implementations
-and the shared style helper code are ported from this repository.
-The original code was written as part of the Qt Toolkit by
-the Qt Project and Digia Plc contributors. All source files
-retain their original copyright and license headers.
+The Motif, CDE, Plastique, and Cleanlooks style implementations and the
+shared style helper code are ported from this repository. qtstyleplugins
+is itself the Qt 4-era styles that were lifted out of the main Qt tree
+when Qt 5 made Fusion the default, so the behavioural ancestor for these
+styles is Qt 4.8 (src/gui/styles/). All source files retain their
+original copyright and license headers; the full LGPL-2.1 text is in
+LICENSE.
 
-Local changes: ported from Qt 5 to Qt 6 (API migrations only,
-no behavioral changes).
+Local changes
+-------------
+- Ported from Qt 5 to Qt 6. The API migrations are mechanical and do not
+  change rendering.
+- One deliberate behavioural divergence from upstream: the Motif style no
+  longer draws a focus frame around a focused tab bar. Upstream clipped
+  that frame to a stray L under the tabs; instead the focused tab now
+  paints its own focus rectangle. Marked in-file in
+  src/motif/qmotifstyle.cpp.
+- Modified source files carry a house modification stamp below the
+  upstream Qt license block. Files that are byte-identical to upstream
+  (src/shared/qhexstring_p.h) are left as pristine copies. The inherited
+  LGPL-2.1 license is not changed.

@@ -39,6 +39,10 @@
 **
 ****************************************************************************/
 
+// Qt 6 port modifications for the qt-classic-styles Project.
+// Copyright (C) 2026 qt-classic-styles project. Contact: qt-classic-styles-project@trinity2k.net
+// License unchanged from the Qt original above: LGPL-2.1 (Digia Qt LGPL Exception).
+
 #include "qmotifstyle.h"
 
 #include "qmenu.h"
@@ -2421,9 +2425,18 @@ bool QMotifStyle::event(QEvent *e)
                 }
             }
 #endif
-            if (!focus)
-                focus = new QFocusFrame(focusWidget);
-            focus->setWidget(focusWidget);
+            // Local divergence from upstream: the Motif focus frame around a
+            // QTabBar clips to a stray L under the tabs instead of a focus box,
+            // so skip it and let the focused tab paint its own PE_FrameFocusRect
+            // (qcs-8ij4).
+            if (qobject_cast<QTabBar *>(focusWidget)) {
+                if (focus)
+                    focus->setWidget(0);
+            } else {
+                if (!focus)
+                    focus = new QFocusFrame(focusWidget);
+                focus->setWidget(focusWidget);
+            }
         } else {
             if (focus)
                 focus->setWidget(0);
