@@ -50,3 +50,45 @@ target_sources(qcleanlooksstyle PRIVATE
 target_link_libraries(qcleanlooksstyle PRIVATE Qt6::Widgets classic-styles-shared)
 target_include_directories(qcleanlooksstyle PRIVATE src/cleanlooks)
 install(TARGETS qcleanlooksstyle DESTINATION ${QT6_INSTALL_PLUGINS}/styles)
+
+add_library(photon-core STATIC
+    src/photon/photonpainter.cpp src/photon/photonpainter.h
+    src/photon/qphotonstyle.cpp src/photon/qphotonstyle.h
+)
+set_target_properties(photon-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(photon-core PUBLIC Qt6::Widgets)
+target_include_directories(photon-core PUBLIC src/photon)
+target_compile_options(photon-core PRIVATE -Wall -Wextra -Wpedantic)
+
+qt_add_plugin(qphotonstyle CLASS_NAME QPhotonStylePlugin)
+target_sources(qphotonstyle PRIVATE src/photon/plugin.cpp src/photon/photon.json)
+target_link_libraries(qphotonstyle PRIVATE photon-core)
+target_compile_options(qphotonstyle PRIVATE -Wall -Wextra -Wpedantic)
+# Tests load the plugin through QT_PLUGIN_PATH=<build>/plugins.
+set_target_properties(qphotonstyle PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/styles)
+install(TARGETS qphotonstyle DESTINATION ${QT6_INSTALL_PLUGINS}/styles)
+
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+
+    qt_add_executable(tst_photonplugin tests/photon/tst_photonplugin.cpp)
+    target_link_libraries(tst_photonplugin PRIVATE Qt6::Widgets Qt6::Test)
+    add_test(NAME tst_photonplugin COMMAND tst_photonplugin)
+    set_tests_properties(tst_photonplugin PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;QT_PLUGIN_PATH=${CMAKE_BINARY_DIR}/plugins")
+
+    qt_add_executable(tst_photonpainter tests/photon/tst_photonpainter.cpp)
+    target_link_libraries(tst_photonpainter PRIVATE photon-core Qt6::Test)
+    add_test(NAME tst_photonpainter COMMAND tst_photonpainter)
+    set_tests_properties(tst_photonpainter PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(tst_photonstyle tests/photon/tst_photonstyle.cpp)
+    target_link_libraries(tst_photonstyle PRIVATE photon-core Qt6::Test)
+    add_test(NAME tst_photonstyle COMMAND tst_photonstyle)
+    set_tests_properties(tst_photonstyle PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Not a test: renders reference-shaped scenes for visual comparison.
+    qt_add_executable(photon_showcase tests/photon/photon_showcase.cpp)
+    target_link_libraries(photon_showcase PRIVATE photon-core Qt6::Test)
+endif()

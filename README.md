@@ -3,8 +3,8 @@
 
 # Qt Classic Styles
 
-Classic Qt widget styles ported to Qt 6: Motif, CDE, Plastique, and
-Cleanlooks.
+Classic Qt widget styles for Qt 6: Motif, CDE, Plastique and Cleanlooks,
+ported from Qt, plus Photon, the look of the QNX 6 Photon microGUI.
 
 These styles were part of Qt until they were moved to the
 qtstyleplugins repository and left unmaintained. This project brings
@@ -37,7 +37,7 @@ QT_STYLE_OVERRIDE=motif ./your-app
 Or in code:
 
 ```cpp
-QApplication::setStyle("motif");   // or "cde", "plastique", "cleanlooks"
+QApplication::setStyle("motif");   // or "cde", "plastique", "cleanlooks", "photon"
 ```
 
 ## Styles
@@ -46,11 +46,13 @@ QApplication::setStyle("motif");   // or "cde", "plastique", "cleanlooks"
 - **CDE** - Common Desktop Environment variation of Motif
 - **Plastique** - translucent gradients, the default KDE 3 style
 - **Cleanlooks** - clean flat-ish style from early GNOME
+- **Photon** - the grey, etched look of QNX 6.2 Photon
 
 ## License
 
-LGPL-2.1, inherited from the original Qt source. See LICENSE and
-THIRD_PARTY_LICENSES.txt.
+Motif, CDE, Plastique and Cleanlooks are LGPL-2.1, inherited from the
+original Qt source. Photon is new code under LGPL-2.1-or-later. See LICENSE
+and THIRD_PARTY_LICENSES.txt.
 
 SJ-PKG-0010
 

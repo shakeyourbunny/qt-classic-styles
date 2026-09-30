@@ -30,3 +30,10 @@ Local changes
   upstream Qt license block. Files that are byte-identical to upstream
   (src/shared/qhexstring_p.h) are left as pristine copies. The inherited
   LGPL-2.1 license is not changed.
+
+Photon style
+------------
+src/photon/ is original work of the qt-classic-styles project under
+LGPL-2.1-or-later. It contains no code from Qt's styles or from QNX. Its
+look was measured from public screenshots of QNX 6.2.1 Photon; no QNX
+software, artwork or fonts are included.
