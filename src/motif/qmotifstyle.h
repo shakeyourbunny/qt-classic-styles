@@ -115,7 +115,7 @@ private:
     int animationFps;
     int animateTimer;
     QElapsedTimer startTime;
-    int animateStep;
+    qint64 animateStep;
 
 protected:
     int spinboxHCoeff;

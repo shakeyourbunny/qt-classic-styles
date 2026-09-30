@@ -753,7 +753,9 @@ static void qt_plastique_draw_gradient(QPainter *painter, const QRect &rect, con
     QPainter *p = painter;
     QRect r = rect;
 
-    bool doPixmapCache = painter->deviceTransform().isIdentity()
+    // An empty rect has nothing to cache and no pixmap to paint into.
+    bool doPixmapCache = !rect.isEmpty()
+            && painter->deviceTransform().isIdentity()
             && painter->worldTransform().isIdentity();
     if (doPixmapCache && QPixmapCache::find(gradientName, &cache)) {
         painter->drawPixmap(rect, cache);
@@ -1365,6 +1367,7 @@ void QPlastiqueStyle::drawPrimitive(PrimitiveElement element, const QStyleOption
             painter->restore();
             break;
         }
+        break;
 #endif // QT_NO_LINEEDIT
     case PE_FrameDockWidget:
     case PE_FrameMenu:
@@ -1427,9 +1430,9 @@ void QPlastiqueStyle::drawPrimitive(PrimitiveElement element, const QStyleOption
     case PE_IndicatorToolBarHandle: {
         QPixmap cache;
         QRect rect = option->rect;
-        QString pixmapName = QStyleHelper::uniqueName(QLatin1String("toolbarhandle"), option, rect.size());
-        if (!QPixmapCache::find(pixmapName, &cache)) {
-            cache = QPixmap(rect.size());
+        QString pixmapName = ClassicStyleHelper::uniqueName(QLatin1String("toolbarhandle"), option, rect.size(), ClassicStyleHelper::cacheDpr(painter));
+        if (!rect.size().isEmpty() && !QPixmapCache::find(pixmapName, &cache)) {
+            cache = ClassicStyleHelper::styleCachePixmap(rect.size(), ClassicStyleHelper::cacheDpr(painter));
             cache.fill(Qt::transparent);
             QPainter cachePainter(&cache);
             QRect cacheRect(QPoint(0, 0), rect.size());
@@ -2645,19 +2648,19 @@ void QPlastiqueStyle::drawControl(ControlElement element, const QStyleOption *op
             // contents
             painter->setPen(QPen());
 
-            QString progressBarName = QStyleHelper::uniqueName(QLatin1String("progressBarContents"),
-                                                 option, rect.size());
+            QString progressBarName = ClassicStyleHelper::uniqueName(QLatin1String("progressBarContents"),
+                                                 option, rect.size(), ClassicStyleHelper::cacheDpr(painter));
             QPixmap cache;
-            if (!QPixmapCache::find(progressBarName, &cache) && rect.height() > 7) {
+            if (!rect.isEmpty() && !QPixmapCache::find(progressBarName, &cache) && rect.height() > 7) {
                 QSize size = rect.size();
-                cache = QPixmap(QSize(size.width() - 6 + 30, size.height() - 6));
+                cache = ClassicStyleHelper::styleCachePixmap(QSize(size.width() - 6 + 30, size.height() - 6), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::white);
                 QPainter cachePainter(&cache);
-                QRect pixmapRect(0, 0, cache.width(), cache.height());
+                const QRect pixmapRect(QPoint(0, 0), cache.deviceIndependentSize().toSize());
 
                 int leftEdge = 0;
                 bool flip = false;
-                while (leftEdge < cache.width() + 1) {
+                while (leftEdge < pixmapRect.width() + 1) {
                     QColor rectColor = option->palette.highlight().color();
                     QColor lineColor = option->palette.highlight().color();
                     if (flip) {
@@ -2705,12 +2708,12 @@ void QPlastiqueStyle::drawControl(ControlElement element, const QStyleOption *op
         // Draws the header in tables.
         if (const QStyleOptionHeader *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
             QPixmap cache;
-            QString pixmapName = QStyleHelper::uniqueName(QLatin1String("headersection"), option, option->rect.size());
+            QString pixmapName = ClassicStyleHelper::uniqueName(QLatin1String("headersection"), option, option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
             pixmapName += QString::number(- int(header->position));
             pixmapName += QString::number(- int(header->orientation));
 
-            if (!QPixmapCache::find(pixmapName, &cache)) {
-                cache = QPixmap(option->rect.size());
+            if (!option->rect.size().isEmpty() && !QPixmapCache::find(pixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::white);
                 QRect pixmapRect(0, 0, option->rect.width(), option->rect.height());
                 QPainter cachePainter(&cache);
@@ -2952,9 +2955,9 @@ void QPlastiqueStyle::drawControl(ControlElement element, const QStyleOption *op
         // Draws a menu bar item; File, Edit, Help etc..
         if ((option->state & State_Selected)) {
             QPixmap cache;
-            QString pixmapName = QStyleHelper::uniqueName(QLatin1String("menubaritem"), option, option->rect.size());
-            if (!QPixmapCache::find(pixmapName, &cache)) {
-                cache = QPixmap(option->rect.size());
+            QString pixmapName = ClassicStyleHelper::uniqueName(QLatin1String("menubaritem"), option, option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
+            if (!option->rect.size().isEmpty() && !QPixmapCache::find(pixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::white);
                 QRect pixmapRect(0, 0, option->rect.width(), option->rect.height());
                 QPainter cachePainter(&cache);
@@ -3307,12 +3310,12 @@ void QPlastiqueStyle::drawControl(ControlElement element, const QStyleOption *op
             bool reverse = scrollBar->direction == Qt::RightToLeft;
             bool sunken = scrollBar->state & State_Sunken;
 
-            QString addLinePixmapName = QStyleHelper::uniqueName(QLatin1String("scrollbar_addline"), option, option->rect.size());
+            QString addLinePixmapName = ClassicStyleHelper::uniqueName(QLatin1String("scrollbar_addline"), option, option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
             QPixmap cache;
-            if (!QPixmapCache::find(addLinePixmapName, &cache)) {
-                cache = QPixmap(option->rect.size());
+            if (!option->rect.size().isEmpty() && !QPixmapCache::find(addLinePixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::white);
-                QRect pixmapRect(0, 0, cache.width(), cache.height());
+                const QRect pixmapRect(QPoint(0, 0), cache.deviceIndependentSize().toSize());
                 QPainter addLinePainter(&cache);
                 addLinePainter.fillRect(pixmapRect, option->palette.window());
 
@@ -3379,15 +3382,15 @@ void QPlastiqueStyle::drawControl(ControlElement element, const QStyleOption *op
             bool sunken = scrollBar->state & State_Sunken;
             bool horizontal = scrollBar->orientation == Qt::Horizontal;
 
-            QString groovePixmapName = QStyleHelper::uniqueName(QLatin1String("scrollbar_groove"), option, option->rect.size());
+            QString groovePixmapName = ClassicStyleHelper::uniqueName(QLatin1String("scrollbar_groove"), option, option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
             if (sunken)
                 groovePixmapName += QLatin1String("-sunken");
             if (element == CE_ScrollBarAddPage)
                 groovePixmapName += QLatin1String("-addpage");
 
             QPixmap cache;
-            if (!QPixmapCache::find(groovePixmapName, &cache)) {
-                cache = QPixmap(option->rect.size());
+            if (!option->rect.size().isEmpty() && !QPixmapCache::find(groovePixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(option->palette.window().color());
                 QPainter groovePainter(&cache);
                 QRect pixmapRect = QRect(0, 0, option->rect.width(), option->rect.height());
@@ -3438,12 +3441,12 @@ void QPlastiqueStyle::drawControl(ControlElement element, const QStyleOption *op
                 button2.setRect(scrollBarSubLine.left(), scrollBarSubLine.bottom() - (scrollBarExtent - 1), scrollBarSubLine.width(), scrollBarExtent);
             }
 
-            QString subLinePixmapName = QStyleHelper::uniqueName(QLatin1String("scrollbar_subline"), option, button1.size());
+            QString subLinePixmapName = ClassicStyleHelper::uniqueName(QLatin1String("scrollbar_subline"), option, button1.size(), ClassicStyleHelper::cacheDpr(painter));
             QPixmap cache;
-            if (!QPixmapCache::find(subLinePixmapName, &cache)) {
-                cache = QPixmap(button1.size());
+            if (!button1.size().isEmpty() && !QPixmapCache::find(subLinePixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(button1.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::white);
-                QRect pixmapRect(0, 0, cache.width(), cache.height());
+                const QRect pixmapRect(QPoint(0, 0), cache.deviceIndependentSize().toSize());
                 QPainter subLinePainter(&cache);
                 subLinePainter.fillRect(pixmapRect, option->palette.window());
 
@@ -3513,15 +3516,15 @@ void QPlastiqueStyle::drawControl(ControlElement element, const QStyleOption *op
 
             // The slider
             if (option->rect.isValid()) {
-                QString sliderPixmapName = QStyleHelper::uniqueName(QLatin1String("scrollbar_slider"), option, option->rect.size());
+                QString sliderPixmapName = ClassicStyleHelper::uniqueName(QLatin1String("scrollbar_slider"), option, option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                 if (horizontal)
                     sliderPixmapName += QLatin1String("-horizontal");
 
                 QPixmap cache;
-                if (!QPixmapCache::find(sliderPixmapName, &cache)) {
-                    cache = QPixmap(option->rect.size());
+                if (!option->rect.size().isEmpty() && !QPixmapCache::find(sliderPixmapName, &cache)) {
+                    cache = ClassicStyleHelper::styleCachePixmap(option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                     cache.fill(Qt::white);
-                    QRect pixmapRect(0, 0, cache.width(), cache.height());
+                    const QRect pixmapRect(QPoint(0, 0), cache.deviceIndependentSize().toSize());
                     QPainter sliderPainter(&cache);
                     bool sunken = (scrollBar->state & State_Sunken);
 
@@ -3731,14 +3734,14 @@ void QPlastiqueStyle::drawComplexControl(ComplexControl control, const QStyleOpt
             }
 
             if ((option->subControls & SC_SliderHandle) && handle.isValid()) {
-                QString handlePixmapName = QStyleHelper::uniqueName(QLatin1String("slider_handle"), option, handle.size());
+                QString handlePixmapName = ClassicStyleHelper::uniqueName(QLatin1String("slider_handle"), option, handle.size(), ClassicStyleHelper::cacheDpr(painter));
                 if (ticksAbove && !ticksBelow)
                     handlePixmapName += QLatin1String("-flipped");
                 if ((option->activeSubControls & SC_SliderHandle) && (option->state & State_Sunken))
                     handlePixmapName += QLatin1String("-sunken");
 
-                if (!QPixmapCache::find(handlePixmapName, &cache)) {
-                    cache = QPixmap(handle.size());
+                if (!handle.size().isEmpty() && !QPixmapCache::find(handlePixmapName, &cache)) {
+                    cache = ClassicStyleHelper::styleCachePixmap(handle.size(), ClassicStyleHelper::cacheDpr(painter));
                     cache.fill(Qt::transparent);
                     QRect pixmapRect(0, 0, handle.width(), handle.height());
                     QPainter handlePainter(&cache);
@@ -3837,25 +3840,20 @@ void QPlastiqueStyle::drawComplexControl(ComplexControl control, const QStyleOpt
                 painter->setPen(borderColor);
                 int tickSize = proxy()->pixelMetric(PM_SliderTickmarkOffset, option, widget);
                 int available = proxy()->pixelMetric(PM_SliderSpaceAvailable, slider, widget);
-                int interval = slider->tickInterval;
-                if (interval <= 0) {
-                    interval = slider->singleStep;
-                    if (QStyle::sliderPositionFromValue(slider->minimum, slider->maximum, interval,
-                                                        available)
-                        - QStyle::sliderPositionFromValue(slider->minimum, slider->maximum,
-                                                          0, available) < 3)
-                        interval = slider->pageStep;
-                }
-                if (interval <= 0)
-                    interval = 1;
-
-                int v = slider->minimum;
                 int len = proxy()->pixelMetric(PM_SliderLength, slider, widget);
+                // Bounded by the travel the ticks are spaced over: Plastique's
+                // PM_SliderSpaceAvailable is the slider thickness, not its length.
+                const int travel = (horizontal ? slider->rect.width() : slider->rect.height()) - len;
+                const int interval = ClassicStyleHelper::effectiveTickInterval(*slider, available, travel);
+
+                // 64-bit: maximum + 1 overflows an int at INT_MAX.
+                qint64 v = slider->minimum;
+                const qint64 last = qint64(slider->maximum) + 1;
                 QVarLengthArray<QLine, 32> lines;
-                while (v <= slider->maximum + 1) {
-                    if (v == slider->maximum + 1 && interval == 1)
+                while (v <= last) {
+                    if (v == last && interval == 1)
                         break;
-                    const int v_ = qMin(v, slider->maximum);
+                    const int v_ = int(qMin<qint64>(v, slider->maximum));
                     int pos = sliderPositionFromValue(slider->minimum, slider->maximum,
                                                       v_, (horizontal
                                                           ? slider->rect.width()
@@ -3884,11 +3882,7 @@ void QPlastiqueStyle::drawComplexControl(ComplexControl control, const QStyleOpt
                         }
                     }
 
-                    // in the case where maximum is max int
-                    int nextInterval = v + interval;
-                    if (nextInterval < v)
-                        break;
-                    v = nextInterval;
+                    v += interval;
                 }
                 painter->drawLines(lines.constData(), lines.size());
                 painter->setPen(oldPen);
@@ -4810,7 +4804,7 @@ void QPlastiqueStyle::drawComplexControl(ComplexControl control, const QStyleOpt
 #ifndef QT_NO_DIAL
     case CC_Dial:
         if (const QStyleOptionSlider *dial = qstyleoption_cast<const QStyleOptionSlider *>(option))
-            QStyleHelper::drawDial(dial, painter);
+            ClassicStyleHelper::drawDial(dial, painter);
         break;
 #endif // QT_NO_DIAL
     default:
@@ -4904,6 +4898,8 @@ QSize QPlastiqueStyle::sizeFromContents(ContentsType type, const QStyleOption *o
 */
 QRect QPlastiqueStyle::subElementRect(SubElement element, const QStyleOption *option, const QWidget *widget) const
 {
+    if (!widget && (element == SE_TabBarScrollLeftButton || element == SE_TabBarScrollRightButton))
+        return ClassicStyleHelper::tabBarScrollButtonRect(proxy(), element, option, widget);
     QRect rect;
     switch (element) {
     case SE_RadioButtonIndicator:
@@ -4929,6 +4925,8 @@ QRect QPlastiqueStyle::subElementRect(SubElement element, const QStyleOption *op
 QRect QPlastiqueStyle::subControlRect(ComplexControl control, const QStyleOptionComplex *option,
                                       SubControl subControl, const QWidget *widget) const
 {
+    if (const auto fixed = ClassicStyleHelper::sanitizedScrollBar(control, option))
+        return subControlRect(control, &*fixed, subControl, widget);
     QRect rect = QProxyStyle::subControlRect(control, option, subControl, widget);
 
     switch (control) {
@@ -4996,8 +4994,9 @@ QRect QPlastiqueStyle::subControlRect(ComplexControl control, const QStyleOption
 
             // calculate slider length
             if (scrollBar->maximum != scrollBar->minimum) {
-                uint valueRange = scrollBar->maximum - scrollBar->minimum;
-                sliderLength = (scrollBar->pageStep * sliderMaxLength) / (valueRange + scrollBar->pageStep);
+                // 64-bit difference and product: both overflow an int for hostile options.
+                uint valueRange = uint(qint64(scrollBar->maximum) - scrollBar->minimum);
+                sliderLength = int((qint64(scrollBar->pageStep) * sliderMaxLength) / (valueRange + scrollBar->pageStep));
 
                 if (sliderLength < sliderMinLength || valueRange > INT_MAX / 2)
                     sliderLength = sliderMinLength;
@@ -5166,17 +5165,19 @@ QRect QPlastiqueStyle::subControlRect(ComplexControl control, const QStyleOption
                         ret.adjust(0, 0, -delta, 0);
                     if (tb->titleBarFlags & Qt::WindowContextHelpButtonHint)
                         ret.adjust(0, 0, -delta, 0);
-                    ret.adjusted(indent, 0, -indent, 0);
+                    ret.adjust(indent, 0, -indent, 0);
                 }
                 break;
             case SC_TitleBarContextHelpButton:
                 if (tb->titleBarFlags & Qt::WindowContextHelpButtonHint)
                     offset += delta;
+                Q_FALLTHROUGH();
             case SC_TitleBarMinButton:
                 if (!isMinimized && (tb->titleBarFlags & Qt::WindowMinimizeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarMinButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarNormalButton:
                 if (isMinimized && (tb->titleBarFlags & Qt::WindowMinimizeButtonHint))
                     offset += delta;
@@ -5184,21 +5185,25 @@ QRect QPlastiqueStyle::subControlRect(ComplexControl control, const QStyleOption
                     offset += delta;
                 else if (sc == SC_TitleBarNormalButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarMaxButton:
                 if (!isMaximized && (tb->titleBarFlags & Qt::WindowMaximizeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarMaxButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarShadeButton:
                 if (!isMinimized && (tb->titleBarFlags & Qt::WindowShadeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarShadeButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarUnshadeButton:
                 if (isMinimized && (tb->titleBarFlags & Qt::WindowShadeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarUnshadeButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarCloseButton:
                 if (tb->titleBarFlags & Qt::WindowSystemMenuHint)
                     offset += delta;
@@ -5399,6 +5404,8 @@ int QPlastiqueStyle::pixelMetric(PixelMetric metric, const QStyleOption *option,
             ret = size;
             break;
         }
+        // No slider option: report the scroll bar extent, as Qt 4 did.
+        Q_FALLTHROUGH();
 #endif // QT_NO_SLIDER
     case PM_ScrollBarExtent:
         ret = 16;
@@ -5741,6 +5748,7 @@ int QPlastiqueStyle::layoutSpacing(QSizePolicy::ControlType control1,
     case CT1(QSizePolicy::CheckBox):
         if (orientation == Qt::Vertical)
             return 2;
+        Q_FALLTHROUGH();
     case CT1(QSizePolicy::RadioButton):
         if (orientation == Qt::Vertical)
             return 1;

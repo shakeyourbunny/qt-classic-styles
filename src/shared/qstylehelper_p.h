@@ -41,6 +41,10 @@
 #include <QtGui/qpolygon.h>
 #include <QtCore/qstringbuilder.h>
 #include <QtGui/qaccessible.h>
+#include <QtWidgets/qstyle.h>
+#include <QtWidgets/qstyleoption.h>
+
+#include <optional>
 
 #ifndef QSTYLEHELPER_P_H
 #define QSTYLEHELPER_P_H
@@ -66,9 +70,20 @@ class QStyleOptionSlider;
 class QStyleOption;
 class QWindow;
 
-namespace QStyleHelper
+// Our own namespace: QtWidgets exports a private QStyleHelper with the same
+// function names, and a plugin's calls bound to those instead of these.
+namespace ClassicStyleHelper
 {
-    QString uniqueName(const QString &key, const QStyleOption *option, const QSize &size);
+    // The key includes the device pixel ratio: a pixmap cached for one
+    // screen must not be reused on a screen with another ratio.
+    QString uniqueName(const QString &key, const QStyleOption *option, const QSize &size, qreal dpr);
+
+    // Device pixel ratio of the painter's device; 1 when there is none.
+    qreal cacheDpr(const QPainter *painter);
+
+    // A transparent cache pixmap of logical size `size` at ratio `dpr`.
+    // Null for an empty size, so callers can skip painting into it.
+    QPixmap styleCachePixmap(const QSize &size, qreal dpr);
 #ifndef QT_NO_DIAL
     qreal angle(const QPointF &p1, const QPointF &p2);
     QPolygonF calcLines(const QStyleOptionSlider *dial);
@@ -84,6 +99,27 @@ namespace QStyleHelper
 #endif
     QColor backgroundColor(const QPalette &pal, const QWidget* widget = nullptr);
     QWindow *styleObjectWindow(QObject *so);
+
+    // SE_TabBarScrollLeftButton / RightButton from the option alone. Qt 6.8's
+    // QCommonStyle reads widget->layoutDirection() for these without a null
+    // check (qcommonstyle.cpp:2967); the QML desktop bridge passes no widget.
+    QRect tabBarScrollButtonRect(const QStyle *style, QStyle::SubElement element,
+                                 const QStyleOption *option, const QWidget *widget);
+
+    // A copy of a CC_ScrollBar option whose uint (range + pageStep) divisor is not
+    // zero, or nullopt when it already is. A page step clamped for a huge range
+    // changes nothing: Qt uses the minimum slider length above INT_MAX / 2.
+    std::optional<QStyleOptionSlider> sanitizedScrollBar(QStyle::ComplexControl control,
+                                                         const QStyleOptionComplex *option);
+
+    // The smallest multiple of interval that puts at most one tick on each
+    // pixel of travel; denser ticks are invisible and cost a loop pass each.
+    int boundedTickInterval(int minimum, int maximum, int interval, int available);
+
+    // QCommonStyle's tick interval rule over available (tickInterval, else
+    // singleStep, else pageStep when single steps are under 3 px), then
+    // bounded to one tick per pixel of travel, the span the ticks are spaced over.
+    int effectiveTickInterval(const QStyleOptionSlider &slider, int available, int travel);
 }
 
 

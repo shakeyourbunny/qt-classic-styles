@@ -73,7 +73,7 @@
 
 QT_BEGIN_NAMESPACE
 
-using namespace QStyleHelper;
+using namespace ClassicStyleHelper;
 
 enum Direction {
     TopDown,
@@ -1510,6 +1510,8 @@ void QCleanlooksStyle::drawControl(ControlElement element, const QStyleOption *o
                 default:
                     break;
                 }
+                // Bottom toolbars share the left/right border rules of top ones.
+                Q_FALLTHROUGH();
             case Qt::TopToolBarArea:
                 switch (toolbar->positionWithinLine) {
                 case QStyleOptionToolBar::Beginning:
@@ -1628,7 +1630,7 @@ void QCleanlooksStyle::drawControl(ControlElement element, const QStyleOption *o
         // Draws the header in tables.
         if (const QStyleOptionHeader *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
             QPixmap cache;
-            QString pixmapName = QStyleHelper::uniqueName(QLatin1String("headersection"), option, option->rect.size());
+            QString pixmapName = ClassicStyleHelper::uniqueName(QLatin1String("headersection"), option, option->rect.size(), ClassicStyleHelper::cacheDpr(painter));
             pixmapName += QString::number(- int(header->position));
             pixmapName += QString::number(- int(header->orientation));
             QRect r = option->rect;
@@ -1647,8 +1649,8 @@ void QCleanlooksStyle::drawControl(ControlElement element, const QStyleOption *o
             }
             painter->fillRect(r, gradient);
 
-            if (!QPixmapCache::find(pixmapName, &cache)) {
-                cache = QPixmap(r.size());
+            if (!r.size().isEmpty() && !QPixmapCache::find(pixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(r.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::transparent);
                 QRect pixmapRect(0, 0, r.width(), r.height());
                 QPainter cachePainter(&cache);
@@ -2418,9 +2420,9 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
     case CC_SpinBox:
         if (const QStyleOptionSpinBox *spinBox = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
             QPixmap cache;
-            QString pixmapName = QStyleHelper::uniqueName(QLatin1String("spinbox"), spinBox, spinBox->rect.size());
-            if (!QPixmapCache::find(pixmapName, &cache)) {
-                cache = QPixmap(spinBox->rect.size());
+            QString pixmapName = ClassicStyleHelper::uniqueName(QLatin1String("spinbox"), spinBox, spinBox->rect.size(), ClassicStyleHelper::cacheDpr(painter));
+            if (!spinBox->rect.size().isEmpty() && !QPixmapCache::find(pixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(spinBox->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::transparent);
                 QRect pixmapRect(0, 0, spinBox->rect.width(), spinBox->rect.height());
                 QPainter cachePainter(&cache);
@@ -3122,7 +3124,7 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
 
                 // The AddLine (down/right) button
                 if (scrollBar->subControls & SC_ScrollBarAddLine) {
-                    QString addLinePixmapName = QStyleHelper::uniqueName(QLatin1String("scrollbar_addline"), option, QSize(16, 16));
+                    QString addLinePixmapName = ClassicStyleHelper::uniqueName(QLatin1String("scrollbar_addline"), option, QSize(16, 16), ClassicStyleHelper::cacheDpr(painter));
                     QRect pixmapRect = scrollBarAddLine;
                     if (isEnabled) {
                         QRect fillRect = pixmapRect.adjusted(1, 1, -1, -1);
@@ -3183,7 +3185,7 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
             bool isEnabled = (comboBox->state & State_Enabled);
             bool focus = isEnabled && (comboBox->state & State_HasFocus);
             QPixmap cache;
-            QString pixmapName = QStyleHelper::uniqueName(QLatin1String("combobox"), option, comboBox->rect.size());
+            QString pixmapName = ClassicStyleHelper::uniqueName(QLatin1String("combobox"), option, comboBox->rect.size(), ClassicStyleHelper::cacheDpr(painter));
             if (sunken)
                 pixmapName += QLatin1String("-sunken");
             if (comboBox->editable)
@@ -3191,8 +3193,8 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
             if (isEnabled)
                 pixmapName += QLatin1String("-enabled");
 
-            if (!QPixmapCache::find(pixmapName, &cache)) {
-                cache = QPixmap(comboBox->rect.size());
+            if (!comboBox->rect.size().isEmpty() && !QPixmapCache::find(pixmapName, &cache)) {
+                cache = ClassicStyleHelper::styleCachePixmap(comboBox->rect.size(), ClassicStyleHelper::cacheDpr(painter));
                 cache.fill(Qt::transparent);
                 QPainter cachePainter(&cache);
                 QRect pixmapRect(0, 0, comboBox->rect.width(), comboBox->rect.height());
@@ -3405,12 +3407,12 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
             highlightAlpha.setAlpha(80);
 
             if ((option->subControls & SC_SliderGroove) && groove.isValid()) {
-                QString groovePixmapName = QStyleHelper::uniqueName(QLatin1String("slider_groove"), option, groove.size());
+                QString groovePixmapName = ClassicStyleHelper::uniqueName(QLatin1String("slider_groove"), option, groove.size(), ClassicStyleHelper::cacheDpr(painter));
                 QRect pixmapRect(0, 0, groove.width(), groove.height());
 
                 // draw background groove
-                if (!QPixmapCache::find(groovePixmapName, &cache)) {
-                    cache = QPixmap(pixmapRect.size());
+                if (!pixmapRect.size().isEmpty() && !QPixmapCache::find(groovePixmapName, &cache)) {
+                    cache = ClassicStyleHelper::styleCachePixmap(pixmapRect.size(), ClassicStyleHelper::cacheDpr(painter));
                     cache.fill(Qt::transparent);
                     QPainter groovePainter(&cache);
 
@@ -3443,8 +3445,8 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
                 // draw blue groove highlight
                 QRect clipRect;
                 groovePixmapName += QLatin1String("_blue");
-                if (!QPixmapCache::find(groovePixmapName, &cache)) {
-                    cache = QPixmap(pixmapRect.size());
+                if (!pixmapRect.size().isEmpty() && !QPixmapCache::find(groovePixmapName, &cache)) {
+                    cache = ClassicStyleHelper::styleCachePixmap(pixmapRect.size(), ClassicStyleHelper::cacheDpr(painter));
                     cache.fill(Qt::transparent);
                     QPainter groovePainter(&cache);
                     QLinearGradient gradient;
@@ -3483,9 +3485,9 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
 
             // draw handle
             if ((option->subControls & SC_SliderHandle) ) {
-                QString handlePixmapName = QStyleHelper::uniqueName(QLatin1String("slider_handle"), option, handle.size());
-                if (!QPixmapCache::find(handlePixmapName, &cache)) {
-                    cache = QPixmap(handle.size());
+                QString handlePixmapName = ClassicStyleHelper::uniqueName(QLatin1String("slider_handle"), option, handle.size(), ClassicStyleHelper::cacheDpr(painter));
+                if (!handle.size().isEmpty() && !QPixmapCache::find(handlePixmapName, &cache)) {
+                    cache = ClassicStyleHelper::styleCachePixmap(handle.size(), ClassicStyleHelper::cacheDpr(painter));
                     cache.fill(Qt::transparent);
                     QRect pixmapRect(0, 0, handle.width(), handle.height());
                     QPainter handlePainter(&cache);
@@ -3581,24 +3583,18 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
                 painter->setPen(darkOutline);
                 int tickSize = proxy()->pixelMetric(PM_SliderTickmarkOffset, option, widget);
                 int available = proxy()->pixelMetric(PM_SliderSpaceAvailable, slider, widget);
-                int interval = slider->tickInterval;
-                if (interval <= 0) {
-                    interval = slider->singleStep;
-                    if (QStyle::sliderPositionFromValue(slider->minimum, slider->maximum, interval,
-                                                        available)
-                        - QStyle::sliderPositionFromValue(slider->minimum, slider->maximum,
-                                                        0, available) < 3)
-                        interval = slider->pageStep;
-                }
-                if (interval <= 0)
-                    interval = 1;
-
-                int v = slider->minimum;
                 int len = proxy()->pixelMetric(PM_SliderLength, slider, widget);
-                while (v <= slider->maximum + 1) {
-                    if (v == slider->maximum + 1 && interval == 1)
+                // Bounded by the travel the ticks are spaced over.
+                const int travel = (horizontal ? slider->rect.width() : slider->rect.height()) - len;
+                const int interval = ClassicStyleHelper::effectiveTickInterval(*slider, available, travel);
+
+                // 64-bit: maximum + 1 overflows an int at INT_MAX.
+                qint64 v = slider->minimum;
+                const qint64 last = qint64(slider->maximum) + 1;
+                while (v <= last) {
+                    if (v == last && interval == 1)
                         break;
-                    const int v_ = qMin(v, slider->maximum);
+                    const int v_ = int(qMin<qint64>(v, slider->maximum));
                     int pos = sliderPositionFromValue(slider->minimum, slider->maximum,
                                                     v_, (horizontal
                                                         ? slider->rect.width()
@@ -3625,11 +3621,7 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
                                             slider->rect.right() - tickSize, pos);
                         }
                     }
-                    // in the case where maximum is max int
-                    int nextInterval = v + interval;
-                    if (nextInterval < v)
-                        break;
-                    v = nextInterval;
+                    v += interval;
                 }
             }
             painter->setBrush(oldBrush);
@@ -3640,7 +3632,7 @@ void QCleanlooksStyle::drawComplexControl(ComplexControl control, const QStyleOp
 #ifndef QT_NO_DIAL
     case CC_Dial:
         if (const QStyleOptionSlider *dial = qstyleoption_cast<const QStyleOptionSlider *>(option))
-            QStyleHelper::drawDial(dial, painter);
+            ClassicStyleHelper::drawDial(dial, painter);
         break;
 #endif // QT_NO_DIAL
         default:
@@ -3672,7 +3664,6 @@ int QCleanlooksStyle::pixelMetric(PixelMetric metric, const QStyleOption *option
     case PM_ListViewIconSize:
         ret = 24;
         break;
-    case PM_DialogButtonsSeparator:
     case PM_SplitterWidth:
         ret = 6;
         break;
@@ -3992,10 +3983,10 @@ bool QCleanlooksStyle::eventFilter(QObject *o, QEvent *e)
         break;
     case QEvent::Destroy:
     case QEvent::Hide:
-        // Do static_cast because there is no type info when getting
-        // the destroy event. We know that it is a QProgressBar, since
-        // we only install a widget event filter for QScrollBars.
-        stopProgressAnimation(this, static_cast<QProgressBar *>(o));
+        // reinterpret_cast as in Motif and Plastique: Destroy comes from
+        // ~QWidget, when o is no longer a QProgressBar, and the pointer is
+        // only used as a key.
+        stopProgressAnimation(this, reinterpret_cast<QProgressBar *>(o));
         break;
 #endif // QT_NO_PROGRESSBAR
     default:
@@ -4034,6 +4025,8 @@ void QCleanlooksStyle::stopProgressAnimation(QObject *o, QProgressBar *bar)
 QRect QCleanlooksStyle::subControlRect(ComplexControl control, const QStyleOptionComplex *option,
                                        SubControl subControl, const QWidget *widget) const
 {
+    if (const auto fixed = ClassicStyleHelper::sanitizedScrollBar(control, option))
+        return subControlRect(control, &*fixed, subControl, widget);
     QRect rect = QProxyStyle::subControlRect(control, option, subControl, widget);
 
     switch (control) {
@@ -4244,11 +4237,13 @@ QRect QCleanlooksStyle::subControlRect(ComplexControl control, const QStyleOptio
             case SC_TitleBarContextHelpButton:
                 if (tb->titleBarFlags & Qt::WindowContextHelpButtonHint)
                     offset += delta;
+                Q_FALLTHROUGH();
             case SC_TitleBarMinButton:
                 if (!isMinimized && (tb->titleBarFlags & Qt::WindowMinimizeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarMinButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarNormalButton:
                 if (isMinimized && (tb->titleBarFlags & Qt::WindowMinimizeButtonHint))
                     offset += delta;
@@ -4256,21 +4251,25 @@ QRect QCleanlooksStyle::subControlRect(ComplexControl control, const QStyleOptio
                     offset += delta;
                 else if (sc == SC_TitleBarNormalButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarMaxButton:
                 if (!isMaximized && (tb->titleBarFlags & Qt::WindowMaximizeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarMaxButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarShadeButton:
                 if (!isMinimized && (tb->titleBarFlags & Qt::WindowShadeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarShadeButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarUnshadeButton:
                 if (isMinimized && (tb->titleBarFlags & Qt::WindowShadeButtonHint))
                     offset += delta;
                 else if (sc == SC_TitleBarUnshadeButton)
                     break;
+                Q_FALLTHROUGH();
             case SC_TitleBarCloseButton:
                 if (tb->titleBarFlags & Qt::WindowSystemMenuHint)
                     offset += delta;
@@ -4367,10 +4366,11 @@ int QCleanlooksStyle::styleHint(StyleHint hint, const QStyleOption *option, cons
         ret = true;
         break;
     case SH_Table_GridLineColor:
-        if (option) {
+        if (option)
             ret = option->palette.window().color().darker(120).rgb();
-            break;
-        }
+        else
+            ret = QProxyStyle::styleHint(hint, option, widget, returnData);
+        break;
     case SH_ComboBox_Popup:
         if (const QStyleOptionComboBox *cmb = qstyleoption_cast<const QStyleOptionComboBox *>(option))
             ret = !cmb->editable;
@@ -4424,6 +4424,8 @@ int QCleanlooksStyle::styleHint(StyleHint hint, const QStyleOption *option, cons
 /*! \reimp */
 QRect QCleanlooksStyle::subElementRect(SubElement sr, const QStyleOption *opt, const QWidget *w) const
 {
+    if (!w && (sr == SE_TabBarScrollLeftButton || sr == SE_TabBarScrollRightButton))
+        return ClassicStyleHelper::tabBarScrollButtonRect(proxy(), sr, opt, w);
     QRect r = QProxyStyle::subElementRect(sr, opt, w);
     switch (sr) {
     case SE_PushButtonFocusRect:

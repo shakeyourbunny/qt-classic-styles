@@ -5,6 +5,7 @@
 #include "qphotonstyle.h"
 
 #include "photonpainter.h"
+#include "qstylehelper_p.h"
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -394,7 +395,9 @@ void QPhotonStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPain
             QStyleOptionMenuItem label = *mi;
             label.state &= ~(State_Selected | State_Sunken);
             label.palette.setColor(QPalette::ButtonText, mi->palette.color(QPalette::WindowText));
-            const int flags = Qt::AlignCenter | Qt::TextShowMnemonic | Qt::TextDontClip
+            const int mnemonic = proxy()->styleHint(SH_UnderlineShortcut, mi, widget)
+                ? Qt::TextShowMnemonic : Qt::TextHideMnemonic;
+            const int flags = Qt::AlignCenter | mnemonic | Qt::TextDontClip
                 | Qt::TextSingleLine;
             drawItemText(p, r, flags, label.palette, isEnabled(mi), mi->text, QPalette::WindowText);
         }
@@ -450,7 +453,9 @@ void QPhotonStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPain
             p->save();
             p->setPen(ink);
             p->setFont(mi->font);
-            const int flags = Qt::AlignVCenter | Qt::TextShowMnemonic | Qt::TextDontClip
+            const int mnemonic = proxy()->styleHint(SH_UnderlineShortcut, mi, widget)
+                ? Qt::TextShowMnemonic : Qt::TextHideMnemonic;
+            const int flags = Qt::AlignVCenter | mnemonic | Qt::TextDontClip
                 | Qt::TextSingleLine;
             p->drawText(textRect, flags | Qt::AlignLeft, text);
             if (!shortcut.isEmpty())
@@ -490,7 +495,10 @@ void QPhotonStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPain
             }
             const Qt::Orientation orientation =
                 (pb->state & State_Horizontal) ? Qt::Horizontal : Qt::Vertical;
-            const bool reversed = pb->invertedAppearance != (pb->direction == Qt::RightToLeft);
+            // Layout direction mirrors horizontal bars only, as in QCommonStyle.
+            const bool reversed = orientation == Qt::Horizontal
+                ? pb->invertedAppearance != (pb->direction == Qt::RightToLeft)
+                : pb->invertedAppearance;
             photon::drawProgressBar(p, r, fraction, orientation, reversed, c);
         }
         return;
@@ -572,11 +580,13 @@ void QPhotonStyle::drawComplexControl(ComplexControl cc, const QStyleOptionCompl
             const QColor ink = isEnabled(cb) ? c.text : c.disabledText;
             if (cb->editable) {
                 photon::drawField(p, r, c, isEnabled(cb) ? c.fieldFill : c.window);
-                photon::drawComboArrowButton(p, r, kComboArrowArea, pressed, isEnabled(cb), c);
+                photon::drawComboArrowButton(p, r, kComboArrowArea, pressed, isEnabled(cb), c,
+                                             cb->direction == Qt::RightToLeft);
             } else {
                 photon::drawButton(p, r, c, pressed, true);
                 if (r.width() > kComboArrowArea + 8) {
-                    const int sepX = r.right() - 16;
+                    // Mirrored in RTL; the etch keeps dark before light.
+                    const int sepX = cb->direction == Qt::RightToLeft ? r.left() + 15 : r.right() - 16;
                     photon::drawEtchedLine(p, QPoint(sepX, r.top() + 4), Qt::Vertical,
                                            std::max(0, r.height() - 8), c.stripDark, c.stripLight);
                 }
@@ -603,7 +613,8 @@ void QPhotonStyle::drawComplexControl(ComplexControl cc, const QStyleOptionCompl
                     p, sb->rect, kSpinButtonWidth, sunken && (sb->activeSubControls & SC_SpinBoxUp),
                     sunken && (sb->activeSubControls & SC_SpinBoxDown),
                     enabled && (sb->stepEnabled & QAbstractSpinBox::StepUpEnabled),
-                    enabled && (sb->stepEnabled & QAbstractSpinBox::StepDownEnabled), c);
+                    enabled && (sb->stepEnabled & QAbstractSpinBox::StepDownEnabled), c,
+                    sb->direction == Qt::RightToLeft);
             }
         }
         return;
@@ -616,15 +627,9 @@ void QPhotonStyle::drawComplexControl(ComplexControl cc, const QStyleOptionCompl
             photon::ScrollBarState state;
             state.orientation = sb->orientation;
             state.buttonLength = kScrollButtonLength;
-            state.sliderMinimum = pixelMetric(PM_ScrollBarSliderMin, sb, widget);
-            state.showSlider = enabled && range > 0;
-            if (range > 0) {
-                const double pos =
-                    static_cast<double>(qint64(sb->sliderPosition) - sb->minimum) / static_cast<double>(range);
-                state.sliderStart = sb->upsideDown ? 1.0 - pos : pos;
-                state.sliderLength = static_cast<double>(sb->pageStep)
-                    / static_cast<double>(range + std::max(sb->pageStep, 0));
-            }
+            if (enabled && range > 0)
+                state.slider = subControlRect(cc, sb, SC_ScrollBarSlider, widget);
+            state.mirrored = sb->orientation == Qt::Horizontal && sb->direction == Qt::RightToLeft;
             state.subPressed = sunken && (sb->activeSubControls & SC_ScrollBarSubLine);
             state.addPressed = sunken && (sb->activeSubControls & SC_ScrollBarAddLine);
             state.subEnabled = enabled && sb->sliderValue > sb->minimum;
@@ -647,9 +652,10 @@ void QPhotonStyle::drawComplexControl(ComplexControl cc, const QStyleOptionCompl
                                            Qt::Vertical, groove.height(), c.sliderGrooveLight, c.outline);
             }
             if ((sl->subControls & SC_SliderTickmarks) && sl->tickPosition != QSlider::NoTicks) {
-                const int interval = sl->tickInterval > 0 ? sl->tickInterval
-                                                          : std::max(sl->pageStep, 1);
                 const int available = pixelMetric(PM_SliderSpaceAvailable, sl, widget);
+                const int interval = ClassicStyleHelper::boundedTickInterval(
+                    sl->minimum, sl->maximum,
+                    sl->tickInterval > 0 ? sl->tickInterval : std::max(sl->pageStep, 1), available);
                 const int len = pixelMetric(PM_SliderLength, sl, widget);
                 for (qint64 v = sl->minimum; v <= sl->maximum; v += interval) {
                     const int pos = sliderPositionFromValue(sl->minimum, sl->maximum, int(v), available,
@@ -667,8 +673,6 @@ void QPhotonStyle::drawComplexControl(ComplexControl cc, const QStyleOptionCompl
                         if (sl->tickPosition & QSlider::TicksLeft)
                             p->fillRect(QRect(sl->rect.left(), y, 2, 1), c.outline);
                     }
-                    if (interval <= 0)
-                        break;
                 }
             }
             if ((sl->subControls & SC_SliderHandle) && handle.width() >= 4 && handle.height() >= 4) {
@@ -798,6 +802,9 @@ QSize QPhotonStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt, c
         return QSize(size.width() + 2 * kFrameWidth + kSpinButtonWidth + 2,
                      std::max(size.height() + 2 * kFrameWidth, 24));
     case CT_LineEdit:
+        if (const auto *frame = qstyleoption_cast<const QStyleOptionFrame *>(opt);
+            frame && frame->lineWidth <= 0)
+            return size;
         return QSize(size.width() + 2 * kFrameWidth + 2, std::max(size.height() + 2 * kFrameWidth, 22));
     case CT_MenuItem:
         if (const auto *mi = qstyleoption_cast<const QStyleOptionMenuItem *>(opt)) {
@@ -845,23 +852,8 @@ QRect QPhotonStyle::subElementRect(SubElement se, const QStyleOption *opt, const
 
     switch (se) {
     case SE_TabBarScrollLeftButton:
-    case SE_TabBarScrollRightButton: {
-        // QCommonStyle reads widget->layoutDirection() without a null check
-        // (Qt 6.8 qcommonstyle.cpp:2967); this uses the option's direction.
-        const QRect r = opt->rect;
-        const bool vertical = r.width() < r.height();
-        const int width = pixelMetric(PM_TabBarScrollButtonWidth, nullptr, widget);
-        const int overlap = pixelMetric(PM_TabBar_ScrollButtonOverlap, nullptr, widget);
-        if (se == SE_TabBarScrollLeftButton) {
-            if (vertical)
-                return QRect(0, r.height() - width * 2 + overlap, r.width(), width);
-            return visualRect(opt->direction, r,
-                              QRect(r.width() - width * 2 + overlap, 0, width, r.height()));
-        }
-        if (vertical)
-            return QRect(0, r.height() - width, r.width(), width);
-        return visualRect(opt->direction, r, QRect(r.width() - width, 0, width, r.height()));
-    }
+    case SE_TabBarScrollRightButton:
+        return ClassicStyleHelper::tabBarScrollButtonRect(this, se, opt, widget);
     case SE_ProgressBarGroove:
     case SE_ProgressBarContents:
     case SE_ProgressBarLabel:
@@ -878,6 +870,10 @@ QRect QPhotonStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex 
 {
     if (!opt)
         return QCommonStyle::subControlRect(cc, opt, sc, widget);
+    // Sub-controls Photon does not place itself go to QCommonStyle, which
+    // divides by the same range + pageStep.
+    if (const auto fixed = ClassicStyleHelper::sanitizedScrollBar(cc, opt))
+        return subControlRect(cc, &*fixed, sc, widget);
 
     switch (cc) {
     case CC_ComboBox:
@@ -956,7 +952,9 @@ QRect QPhotonStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex 
             int sliderLength = grooveLength;
             if (sb->maximum > sb->minimum) {
                 const qint64 range = qint64(sb->maximum) - sb->minimum;
-                sliderLength = int((qint64(sb->pageStep) * grooveLength) / (range + sb->pageStep));
+                // A negative page step from a hand-built option could zero the divisor.
+                const qint64 page = std::max(sb->pageStep, 0);
+                sliderLength = int((page * grooveLength) / (range + page));
                 const int minimum = pixelMetric(PM_ScrollBarSliderMin, sb, widget);
                 if (sliderLength < minimum || range > INT_MAX / 2)
                     sliderLength = minimum;

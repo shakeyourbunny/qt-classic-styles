@@ -372,6 +372,8 @@ Colors colorsFromPalette(const QPalette &pal)
     c.stripLight = c.light;
     c.tabInactive = shifted(c.window, -17);
     c.tabInactiveLight = shifted(c.window, 3);
+    // Grey on purpose: QNX 6.2.1 draws the unselected tab label #636363
+    // (Display settings dialog), lighter than text but without disabled's etch.
     c.tabInactiveText = mix(pal.color(QPalette::WindowText), c.window, 0.46);
     c.tabSlantLight = shifted(c.window, 10);
     c.trough = shifted(c.window, -35);
@@ -541,7 +543,7 @@ void drawPanel(QPainter *p, const QRect &r, const Colors &c)
 }
 
 void drawComboArrowButton(QPainter *p, const QRect &r, int width, bool pressed, bool enabled,
-                          const Colors &c)
+                          const Colors &c, bool mirrored)
 {
     if (!p || width <= 0)
         return;
@@ -549,7 +551,8 @@ void drawComboArrowButton(QPainter *p, const QRect &r, int width, bool pressed, 
     const QRect d = cv.rect();
     const int u = cv.unit();
     // Shares the field outline on the top, bottom and right.
-    const QRect b(d.right() - u + 1 - width * u, d.top() + u, width * u, d.height() - 2 * u);
+    const int x = mirrored ? d.left() + u : d.right() - u + 1 - width * u;
+    const QRect b(x, d.top() + u, width * u, d.height() - 2 * u);
     if (b.width() < 4 * u || b.height() < 4 * u)
         return;
     button(p, b, u, c, pressed);
@@ -557,14 +560,14 @@ void drawComboArrowButton(QPainter *p, const QRect &r, int width, bool pressed, 
 }
 
 void drawSpinButtons(QPainter *p, const QRect &r, int width, bool upPressed, bool downPressed,
-                     bool upEnabled, bool downEnabled, const Colors &c)
+                     bool upEnabled, bool downEnabled, const Colors &c, bool mirrored)
 {
     if (!p || width <= 0)
         return;
     const Canvas cv(p, r);
     const QRect d = cv.rect();
     const int u = cv.unit();
-    const int x = d.right() - u + 1 - width * u;
+    const int x = mirrored ? d.left() + u : d.right() - u + 1 - width * u;
     const int top = d.top() + u;
     const int height = d.height() - 2 * u;
     const int upHeight = ((height / u + 1) / 2) * u;
@@ -596,12 +599,10 @@ void drawScrollBar(QPainter *p, const QRect &r, const ScrollBarState &s, const C
     // The slider shares an outline line with each button.
     const int grooveStart = start + buttonLength - u;
     const int grooveEnd = end - buttonLength + u;
-    const int grooveLength = std::max(0, grooveEnd - grooveStart + 1);
-    int sliderLength = static_cast<int>(std::lround(std::clamp(s.sliderLength, 0.0, 1.0) * grooveLength));
-    sliderLength = std::min(std::max(sliderLength, s.sliderMinimum * u), grooveLength);
-    const int travel = grooveLength - sliderLength;
-    const int sliderPos =
-        grooveStart + static_cast<int>(std::lround(std::clamp(s.sliderStart, 0.0, 1.0) * travel));
+    const QRect sliderRect = s.slider.isEmpty() ? QRect() : cv.map(s.slider);
+    const int sliderPos = horizontal ? sliderRect.left() : sliderRect.top();
+    const int sliderLength = horizontal ? sliderRect.width() : sliderRect.height();
+    const bool showSlider = !sliderRect.isEmpty();
 
     auto span = [&](int from, int count) {
         return horizontal ? QRect(from, d.top(), count, d.height())
@@ -619,23 +620,31 @@ void drawScrollBar(QPainter *p, const QRect &r, const ScrollBarState &s, const C
         fill(p, QRect(d.left() + u, d.top() + u, d.width() - 2 * u, u), c.troughShade);
     else
         fill(p, QRect(d.left() + u, d.top() + u, u, d.height() - 2 * u), c.troughShade);
+    // Light comes from the top left whatever the direction: the shade falls
+    // after the left-hand button and after the slider.
     shadeAt(grooveStart + u);
-    if (s.showSlider && sliderPos + sliderLength < grooveEnd)
+    if (showSlider && sliderPos + sliderLength < grooveEnd)
         shadeAt(sliderPos + sliderLength);
     ring(p, d, u, c.outline);
 
-    const QRect sub = span(start, buttonLength);
-    const QRect add = span(end - buttonLength + 1, buttonLength);
+    const QRect startButton = span(start, buttonLength);
+    const QRect endButton = span(end - buttonLength + 1, buttonLength);
+    const QRect sub = s.mirrored ? endButton : startButton;
+    const QRect add = s.mirrored ? startButton : endButton;
+    const Qt::ArrowType subArrow =
+        horizontal ? (s.mirrored ? Qt::RightArrow : Qt::LeftArrow) : Qt::UpArrow;
+    const Qt::ArrowType addArrow =
+        horizontal ? (s.mirrored ? Qt::LeftArrow : Qt::RightArrow) : Qt::DownArrow;
     for (const auto &[b, pressed, enabled, type] :
-         {std::tuple{sub, s.subPressed, s.subEnabled, horizontal ? Qt::LeftArrow : Qt::UpArrow},
-          std::tuple{add, s.addPressed, s.addEnabled, horizontal ? Qt::RightArrow : Qt::DownArrow}}) {
+         {std::tuple{sub, s.subPressed, s.subEnabled, subArrow},
+          std::tuple{add, s.addPressed, s.addEnabled, addArrow}}) {
         if (b.width() < 6 * u || b.height() < 6 * u)
             continue;
         button(p, b, u, c, pressed);
         arrow(p, inset(b, 1, u), u, type, enabled ? c.arrow : c.arrowDisabled, kScrollArrow);
     }
 
-    if (s.showSlider && sliderLength >= 4 * u) {
+    if (showSlider && sliderLength >= 4 * u) {
         const QRect slider = span(sliderPos, sliderLength);
         // The slider's ramp runs across the bar, dark side first.
         gradient(p, inset(slider, 2, u), c.button, kFillContrast,
@@ -688,10 +697,15 @@ void drawProgressBar(QPainter *p, const QRect &r, double fraction, Qt::Orientati
     const int filled = static_cast<int>(std::lround(std::clamp(fraction, 0.0, 1.0) * length));
     if (filled < 2 * u)
         return;
+    // Vertical bars grow upwards; reversed ones grow down from the top.
     QRect bar = vertical ? QRect(in.left(), in.bottom() - filled + 1, in.width(), filled)
                          : QRect(in.left(), in.top(), filled, in.height());
-    if (!vertical && reversed)
-        bar.moveRight(in.right());
+    if (reversed) {
+        if (vertical)
+            bar.moveTop(in.top());
+        else
+            bar.moveRight(in.right());
+    }
     fill(p, bar, c.progressFill);
     fill(p, QRect(bar.left(), bar.top(), bar.width(), u), c.progressFillLight);
     fill(p, QRect(bar.left(), bar.top() + u, u, bar.height() - u), c.progressFillLight);

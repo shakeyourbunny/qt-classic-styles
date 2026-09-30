@@ -1,0 +1,20 @@
+// This file is part of the qt-classic-styles Project.
+// License: LGPL-2.1-or-later. Contact: qt-classic-styles-project@trinity2k.net
+//
+// Generated from cmake/version.h.in by CMake. Do not edit the copy.
+
+#ifndef QTCLASSICSTYLES_VERSION_H
+#define QTCLASSICSTYLES_VERSION_H
+
+#include <string_view>
+
+namespace qtclassicstyles {
+
+constexpr std::string_view version = "@PROJECT_VERSION@";
+
+// The dated product number of this release in its publisher's catalogue.
+constexpr std::string_view part_number = "@QT_CLASSIC_STYLES_PART_NUMBER@";
+
+} // namespace qtclassicstyles
+
+#endif // QTCLASSICSTYLES_VERSION_H

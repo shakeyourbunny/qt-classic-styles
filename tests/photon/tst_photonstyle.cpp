@@ -15,6 +15,7 @@
 #include <QMenuBar>
 #include <QPainter>
 #include <QProgressBar>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
@@ -28,6 +29,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <cmath>
 #include <cstdlib>
 #include <memory>
 
@@ -110,6 +112,18 @@ private slots:
     void menu_item_pitch_follows_font();
     void null_widget_sweep();
     void showcase_renders();
+
+    void rtl_scroll_bar_paints_slider_where_it_is_hit();
+    void rtl_scroll_bar_puts_the_disabled_sub_arrow_on_the_right();
+    void scroll_bar_paints_slider_where_it_is_hit_at_17_16();
+
+    void rtl_spin_box_buttons_are_painted_where_they_are_hit();
+    void rtl_editable_combo_button_is_painted_where_it_is_hit();
+    void rtl_plain_combo_separator_is_mirrored();
+
+    void inverted_vertical_progress_fills_from_the_top();
+    void menu_mnemonics_follow_the_style_hint();
+    void frameless_line_edit_gets_no_frame_padding();
 };
 
 void TstPhotonStyle::init()
@@ -841,6 +855,194 @@ void TstPhotonStyle::showcase_renders()
     w.resize(400, 600);
     const QImage img = render(&w);
     QVERIFY(!img.isNull());
+}
+
+namespace {
+
+QStyleOptionSlider horizontalScrollBar(QStyle *style, Qt::LayoutDirection direction)
+{
+    QStyleOptionSlider o;
+    o.rect = QRect(0, 0, 200, 17);
+    o.orientation = Qt::Horizontal;
+    o.state = QStyle::State_Enabled | QStyle::State_Horizontal;
+    o.minimum = 0;
+    o.maximum = 100;
+    o.pageStep = 20;
+    o.sliderPosition = 0;
+    o.sliderValue = 0;
+    o.subControls = QStyle::SC_All;
+    o.palette = style->standardPalette();
+    o.direction = direction;
+    return o;
+}
+
+QImage renderComplex(QStyle *style, QStyle::ComplexControl cc, const QStyleOptionComplex &o,
+                     qreal dpr = 1.0)
+{
+    QImage img(o.rect.size() * dpr, QImage::Format_ARGB32);
+    img.setDevicePixelRatio(dpr);
+    img.fill(Qt::magenta);
+    QPainter p(&img);
+    style->drawComplexControl(cc, &o, &p, nullptr);
+    return img;
+}
+
+} // namespace
+
+// Regression: the RTL slider was painted at the left while hit at the right.
+void TstPhotonStyle::rtl_scroll_bar_paints_slider_where_it_is_hit()
+{
+    const QStyleOptionSlider o = horizontalScrollBar(m_style.get(), Qt::RightToLeft);
+    const QRect slider = m_style->subControlRect(QStyle::CC_ScrollBar, &o, QStyle::SC_ScrollBarSlider);
+    QVERIFY(slider.left() > 100);
+    const QImage img = renderComplex(m_style.get(), QStyle::CC_ScrollBar, o);
+    const int mirrorX = o.rect.right() - slider.center().x();
+    QVERIFY(px(img, slider.center().x(), 8) != 0xB5B5B5);
+    EXPECT_PX(img, mirrorX, 8, 0xB5B5B5);
+}
+
+// At the minimum the sub-line arrow is disabled; in RTL that button is on the right.
+void TstPhotonStyle::rtl_scroll_bar_puts_the_disabled_sub_arrow_on_the_right()
+{
+    const QStyleOptionSlider o = horizontalScrollBar(m_style.get(), Qt::RightToLeft);
+    const QImage img = renderComplex(m_style.get(), QStyle::CC_ScrollBar, o);
+    bool right = false;
+    bool left = false;
+    for (int x = 2; x < 15; ++x) {
+        right |= px(img, o.rect.right() - x, 8) == 0x858585;
+        left |= px(img, x, 8) == 0x858585;
+    }
+    QVERIFY(right);
+    QVERIFY(!left);
+}
+
+// Paint and hit geometry come from one calculation at any ratio.
+void TstPhotonStyle::scroll_bar_paints_slider_where_it_is_hit_at_17_16()
+{
+    QStyleOptionSlider o = horizontalScrollBar(m_style.get(), Qt::LeftToRight);
+    o.sliderPosition = o.sliderValue = 37;
+    const QRect slider = m_style->subControlRect(QStyle::CC_ScrollBar, &o, QStyle::SC_ScrollBarSlider);
+    const QImage img = renderComplex(m_style.get(), QStyle::CC_ScrollBar, o, 17.0 / 16.0);
+    const auto device = [](int x) { return int(std::lround(x * 17.0 / 16.0)); };
+    // The slider outline sits on the first and last device column of the hit rect.
+    EXPECT_PX(img, device(slider.left()), device(8), 0x4B4B4B);
+    EXPECT_PX(img, device(slider.left() + slider.width()) - 1, device(8), 0x4B4B4B);
+}
+
+// Regression: in RTL the buttons are hit on the left but were painted on the right.
+void TstPhotonStyle::rtl_spin_box_buttons_are_painted_where_they_are_hit()
+{
+    QStyleOptionSpinBox o;
+    o.rect = QRect(0, 0, 80, 24);
+    o.state = QStyle::State_Enabled;
+    o.subControls = QStyle::SC_All;
+    o.frame = true;
+    o.stepEnabled = QAbstractSpinBox::StepUpEnabled | QAbstractSpinBox::StepDownEnabled;
+    o.palette = m_style->standardPalette();
+    o.direction = Qt::RightToLeft;
+    const QRect up = m_style->subControlRect(QStyle::CC_SpinBox, &o, QStyle::SC_SpinBoxUp);
+    QVERIFY(up.right() < 40);
+    const QImage img = renderComplex(m_style.get(), QStyle::CC_SpinBox, o);
+    const int y = up.center().y();
+    QVERIFY(px(img, up.center().x(), y) != 0xF4F4F4);
+    EXPECT_PX(img, o.rect.right() - up.center().x(), y, 0xF4F4F4);
+}
+
+void TstPhotonStyle::rtl_editable_combo_button_is_painted_where_it_is_hit()
+{
+    QStyleOptionComboBox o;
+    o.rect = QRect(0, 0, 120, 26);
+    o.state = QStyle::State_Enabled;
+    o.subControls = QStyle::SC_All;
+    o.editable = true;
+    o.palette = m_style->standardPalette();
+    o.direction = Qt::RightToLeft;
+    const QRect arrow = m_style->subControlRect(QStyle::CC_ComboBox, &o, QStyle::SC_ComboBoxArrow);
+    QVERIFY(arrow.right() < 60);
+    const QImage img = renderComplex(m_style.get(), QStyle::CC_ComboBox, o);
+    const int y = 4;
+    QVERIFY(px(img, arrow.center().x(), y) != 0xF4F4F4);
+    EXPECT_PX(img, o.rect.right() - arrow.center().x(), y, 0xF4F4F4);
+}
+
+void TstPhotonStyle::rtl_plain_combo_separator_is_mirrored()
+{
+    QStyleOptionComboBox o;
+    o.rect = QRect(0, 0, 120, 26);
+    o.state = QStyle::State_Enabled;
+    o.subControls = QStyle::SC_All;
+    o.palette = m_style->standardPalette();
+    o.direction = Qt::LeftToRight;
+    const QImage ltr = renderComplex(m_style.get(), QStyle::CC_ComboBox, o);
+    EXPECT_PX(ltr, o.rect.right() - 16, 13, 0xA1A1A1);
+    o.direction = Qt::RightToLeft;
+    const QImage rtl = renderComplex(m_style.get(), QStyle::CC_ComboBox, o);
+    EXPECT_PX(rtl, o.rect.left() + 15, 13, 0xA1A1A1);
+}
+
+void TstPhotonStyle::inverted_vertical_progress_fills_from_the_top()
+{
+    QStyleOptionProgressBar o;
+    o.rect = QRect(0, 0, 20, 100);
+    o.state = QStyle::State_Enabled; // vertical
+    o.minimum = 0;
+    o.maximum = 100;
+    o.progress = 50;
+    o.invertedAppearance = true;
+    o.palette = m_style->standardPalette();
+    QImage img(o.rect.size(), QImage::Format_ARGB32);
+    img.fill(Qt::magenta);
+    QPainter p(&img);
+    m_style->drawControl(QStyle::CE_ProgressBarContents, &o, &p, nullptr);
+    p.end();
+    EXPECT_PX(img, 10, 20, 0xB5C4B0); // filled half at the top
+    QVERIFY(px(img, 10, 80) != 0xB5C4B0);
+}
+
+namespace {
+
+class NoUnderlines : public QProxyStyle
+{
+public:
+    using QProxyStyle::QProxyStyle;
+    int styleHint(StyleHint hint, const QStyleOption *opt, const QWidget *w,
+                  QStyleHintReturn *ret) const override
+    {
+        if (hint == SH_UnderlineShortcut)
+            return 0;
+        return QProxyStyle::styleHint(hint, opt, w, ret);
+    }
+};
+
+QImage menuItemImage(QStyle *style, const QString &text)
+{
+    QStyleOptionMenuItem o;
+    o.rect = QRect(0, 0, 120, 20);
+    o.state = QStyle::State_Enabled;
+    o.menuItemType = QStyleOptionMenuItem::Normal;
+    o.text = text;
+    o.palette = style->standardPalette();
+    QImage img(o.rect.size(), QImage::Format_ARGB32);
+    img.fill(Qt::white);
+    QPainter p(&img);
+    style->drawControl(QStyle::CE_MenuItem, &o, &p, nullptr);
+    return img;
+}
+
+} // namespace
+
+void TstPhotonStyle::menu_mnemonics_follow_the_style_hint()
+{
+    NoUnderlines proxy(new QPhotonStyle);
+    QCOMPARE(menuItemImage(&proxy, QStringLiteral("&File")), menuItemImage(&proxy, QStringLiteral("File")));
+}
+
+void TstPhotonStyle::frameless_line_edit_gets_no_frame_padding()
+{
+    QStyleOptionFrame o;
+    o.lineWidth = 0;
+    const QSize contents(100, 16);
+    QCOMPARE(m_style->sizeFromContents(QStyle::CT_LineEdit, &o, contents), contents);
 }
 
 QTEST_MAIN(TstPhotonStyle)

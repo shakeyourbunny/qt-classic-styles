@@ -142,22 +142,23 @@ void drawField(QPainter *p, const QRect &r, const Colors &c, const QColor &fill,
 void drawPanel(QPainter *p, const QRect &r, const Colors &c);
 
 // The raised arrow button of an editable combo, sharing the field outline
-// on the right of r. width is in Photon pixels.
+// on the right of r (on the left when mirrored). width is in Photon pixels.
 void drawComboArrowButton(QPainter *p, const QRect &r, int width, bool pressed, bool enabled,
-                          const Colors &c);
+                          const Colors &c, bool mirrored = false);
 
-// Spin box buttons stacked on the right of r, sharing its field outline.
+// Spin box buttons stacked on the right of r (left when mirrored), sharing
+// its field outline.
 void drawSpinButtons(QPainter *p, const QRect &r, int width, bool upPressed, bool downPressed,
-                     bool upEnabled, bool downEnabled, const Colors &c);
+                     bool upEnabled, bool downEnabled, const Colors &c, bool mirrored = false);
 
 struct ScrollBarState
 {
     Qt::Orientation orientation = Qt::Vertical;
-    int buttonLength = 16;     // Photon pixels, outlines included
-    double sliderStart = 0.0;  // fraction of the free travel, 0..1
-    double sliderLength = 1.0; // fraction of the groove, 0..1
-    int sliderMinimum = 10;    // Photon pixels
-    bool showSlider = true;
+    int buttonLength = 16; // Photon pixels, outlines included
+    // Logical, from subControlRect(SC_ScrollBarSlider); empty draws no slider.
+    QRect slider;
+    // Right to left, horizontal: the sub-line button is on the right.
+    bool mirrored = false;
     bool subPressed = false;
     bool addPressed = false;
     bool subEnabled = true;

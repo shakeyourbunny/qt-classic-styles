@@ -25,6 +25,25 @@ default for your whole desktop.
   microGUI. It was measured from public QNX 6.2.1 screenshots and written from
   scratch. It contains no QNX source code and is not a port of anything.
 
+## Screenshots
+
+Each style is shown with its own standard palette.
+
+| | |
+|---|---|
+| ![Motif](docs/screenshots/motif.png) | ![CDE](docs/screenshots/cde.png) |
+| Motif | CDE |
+| ![Plastique](docs/screenshots/plastique.png) | ![Cleanlooks](docs/screenshots/cleanlooks.png) |
+| Plastique | Cleanlooks |
+| ![Photon](docs/screenshots/photon.png) | |
+| Photon | |
+
+Motif and CDE draw their 3D edges with the palette's light and dark shades,
+the way the originals did. On a very light grey desktop palette those edges
+fade, and radio buttons and small arrows lose most of their relief. That is
+how Motif looked on a light background too. For the classic look, use the
+style's standard palette or a mid-tone colour scheme.
+
 ## Building
 
 You need Qt 6.5 or later, a C++17 compiler, and CMake 3.24 or later.
@@ -36,13 +55,33 @@ cmake --build .
 ```
 
 The build produces one plugin file per style (`.so` on Linux, `.dll` on
-Windows). To build and run the Photon test suite, turn on `BUILD_TESTING`:
+Windows) in `build/plugins/styles/`, plus a small widget gallery called
+`widgetdemo`. To build and run the test suite, turn on `BUILD_TESTING`:
 
 ```bash
 cmake -DBUILD_TESTING=ON ..
 cmake --build .
 ctest
 ```
+
+## Trying the styles
+
+`widgetdemo` shows the same widgets in any installed style and lets you switch
+between them. Run it from the build directory with the new plugins on the
+search path:
+
+```bash
+QT_PLUGIN_PATH=$PWD/plugins ./widgetdemo photon
+```
+
+It can also write one PNG per style without opening a window, which is how
+the screenshots above were made:
+
+```bash
+QT_PLUGIN_PATH=$PWD/plugins ./widgetdemo --screenshot shots
+```
+
+`./widgetdemo --help` lists the options.
 
 ## Installation
 
@@ -122,14 +161,20 @@ For the full Photon look on KDE, two extras ship in `extras/kde/`:
 | `QT_PLUGIN_PATH` | Adds directories to Qt's plugin search. Each entry is scanned for a `styles/` subfolder. |
 | `QT_QPA_PLATFORM` | Selects the windowing backend. Set it to `offscreen` to run Qt without a display, which is what the test suite uses for headless runs. |
 
+## Versioning
+
+Releases follow semantic versioning. A new style or a new option is a minor
+release, a drawing fix is a patch release, and a change that breaks existing
+configurations raises the major version. Every release also carries a dated
+part number, SJ-PKG-0010 followed by the release date, which
+`widgetdemo --version` prints next to the version.
+
 ## License
 
 The four ported styles (Motif, CDE, Plastique, Cleanlooks) are LGPL-2.1,
 inherited from the original Qt source they came from. Photon is new code under
 LGPL-2.1-or-later. See `LICENSE` for the full text and `THIRD_PARTY_LICENSES.txt`
 for the attribution of the ported code.
-
-SJ-PKG-0010
 
 ---
 qt-classic-styles has been written with the help of tooled assistance, but has

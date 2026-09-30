@@ -37,6 +37,8 @@
 
 #include <qstyleoption.h>
 #include <qpainter.h>
+#include <qpaintdevice.h>
+#include <qpixmap.h>
 #include <qpixmapcache.h>
 #include <qmath.h>
 #include <qscrollbar.h>
@@ -47,13 +49,16 @@
 #include "qstylehelper_p.h"
 #include <qstringbuilder.h>
 
+#include <algorithm>
+#include <climits>
+
 QT_BEGIN_NAMESPACE
 
 static const qreal Q_PI   = qreal(3.14159265358979323846);   // pi
 
-namespace QStyleHelper {
+namespace ClassicStyleHelper {
 
-QString uniqueName(const QString &key, const QStyleOption *option, const QSize &size)
+QString uniqueName(const QString &key, const QStyleOption *option, const QSize &size, qreal dpr)
 {
     const QStyleOptionComplex *complexOption = qstyleoption_cast<const QStyleOptionComplex *>(option);
     QString tmp = key % HexString<uint>(option->state)
@@ -61,7 +66,8 @@ QString uniqueName(const QString &key, const QStyleOption *option, const QSize &
                       % HexString<uint>(complexOption ? uint(complexOption->activeSubControls) : 0u)
                       % HexString<quint64>(option->palette.cacheKey())
                       % HexString<uint>(size.width())
-                      % HexString<uint>(size.height());
+                      % HexString<uint>(size.height())
+                      % HexString<qreal>(dpr);
 
 #ifndef QT_NO_SPINBOX
     if (const QStyleOptionSpinBox *spinBox = qstyleoption_cast<const QStyleOptionSpinBox *>(option)) {
@@ -114,19 +120,21 @@ static QPointF calcRadialPos(const QStyleOptionSlider *dial, qreal offset)
     const int width = dial->rect.width();
     const int height = dial->rect.height();
     const int r = qMin(width, height) / 2;
-    const int currentSliderPosition = dial->upsideDown ? dial->sliderPosition : (dial->maximum - dial->sliderPosition);
+    // qreal, not int: range, position and their products overflow an int for
+    // hostile options, and every int value here is exact in a double.
+    const qreal currentSliderPosition = dial->upsideDown
+        ? qreal(dial->sliderPosition) : qreal(dial->maximum) - dial->sliderPosition;
+    const qreal range = qreal(dial->maximum) - dial->minimum;
     qreal a = 0;
     if (dial->maximum == dial->minimum)
         a = Q_PI / 2;
     else if (dial->dialWrapping)
-        a = Q_PI * 3 / 2 - (currentSliderPosition - dial->minimum) * 2 * Q_PI
-            / (dial->maximum - dial->minimum);
+        a = Q_PI * 3 / 2 - (currentSliderPosition - dial->minimum) * 2 * Q_PI / range;
     else
-        a = (Q_PI * 8 - (currentSliderPosition - dial->minimum) * 10 * Q_PI
-            / (dial->maximum - dial->minimum)) / 6;
+        a = (Q_PI * 8 - (currentSliderPosition - dial->minimum) * 10 * Q_PI / range) / 6;
     qreal xc = width / 2.0;
     qreal yc = height / 2.0;
-    qreal len = r - QStyleHelper::calcBigLineSize(r) - 3;
+    qreal len = r - ClassicStyleHelper::calcBigLineSize(r) - 3;
     qreal back = offset * len;
     QPointF pos(QPointF(xc + back * qCos(a), yc - back * qSin(a)));
     return pos;
@@ -177,13 +185,15 @@ QPolygonF calcLines(const QStyleOptionSlider *dial)
     const int ns = dial->tickInterval;
     if (!ns) // Invalid values may be set by Qt Designer.
         return poly;
-    int notches = (dial->maximum + ns - 1 - dial->minimum) / ns;
+    // qint64: the span overflows an int for the full range.
+    const qint64 span = qint64(dial->maximum) - dial->minimum;
+    qint64 notches = (span + ns - 1) / ns;
     if (notches <= 0)
         return poly;
-    if (dial->maximum < dial->minimum || dial->maximum - dial->minimum > 1000) {
-        int maximum = dial->minimum + 1000;
-        notches = (maximum + ns - 1 - dial->minimum) / ns;
-    }
+    if (span < 0 || span > 1000)
+        notches = (1000 + qint64(ns) - 1) / ns;
+    if (notches <= 0)
+        return poly;
 
     poly.resize(2 + 2 * notches);
     int smallLineSize = bigLineSize / 2;
@@ -192,7 +202,7 @@ QPolygonF calcLines(const QStyleOptionSlider *dial)
                   : (Q_PI * 8 - i * 10 * Q_PI / notches) / 6;
         qreal s = qSin(angle);
         qreal c = qCos(angle);
-        if (i == 0 || (((ns * i) % (dial->pageStep ? dial->pageStep : 1)) == 0)) {
+        if (i == 0 || (((qint64(ns) * i) % (dial->pageStep ? dial->pageStep : 1)) == 0)) {
             poly[2 * i] = QPointF(xc + (r - bigLineSize) * c,
                                   yc - (r - bigLineSize) * s);
             poly[2 * i + 1] = QPointF(xc + r * c, yc - r * s);
@@ -225,23 +235,25 @@ void drawDial(const QStyleOptionSlider *option, QPainter *painter)
     // Draw notches
     if (option->subControls & QStyle::SC_DialTickmarks) {
         painter->setPen(option->palette.dark().color().darker(120));
-        painter->drawLines(QStyleHelper::calcLines(option));
+        painter->drawLines(ClassicStyleHelper::calcLines(option).translated(option->rect.topLeft()));
     }
 
+    // Before the cache block: the knob below uses buttonColor on a cache hit too.
+    buttonColor.setHsv(buttonColor .hue(),
+                       qMin(140, buttonColor .saturation()),
+                       qMax(180, buttonColor.value()));
     // Cache dial background
     BEGIN_STYLE_PIXMAPCACHE(QString::fromLatin1("qdial"));
     p->setRenderHint(QPainter::Antialiasing);
 
     const qreal d_ = r / 6;
-    const qreal dx = option->rect.x() + d_ + (width - 2 * r) / 2 + 1;
-    const qreal dy = option->rect.y() + d_ + (height - 2 * r) / 2 + 1;
+    // rect, not option->rect: the macro sets it to the cache pixmap's origin.
+    const qreal dx = rect.x() + d_ + (width - 2 * r) / 2 + 1;
+    const qreal dy = rect.y() + d_ + (height - 2 * r) / 2 + 1;
 
     QRectF br = QRectF(dx + 0.5, dy + 0.5,
                        int(r * 2 - 2 * d_ - 2),
                        int(r * 2 - 2 * d_ - 2));
-    buttonColor.setHsv(buttonColor .hue(),
-                       qMin(140, buttonColor .saturation()),
-                       qMax(180, buttonColor.value()));
     QColor shadowColor(0, 0, 0, 20);
 
     if (enabled) {
@@ -292,7 +304,8 @@ void drawDial(const QStyleOptionSlider *option, QPainter *painter)
 
     END_STYLE_PIXMAPCACHE
 
-    QPointF dp = calcRadialPos(option, qreal(0.70));
+    const QPointF origin = option->rect.topLeft();
+    QPointF dp = origin + calcRadialPos(option, qreal(0.70));
     buttonColor = buttonColor.lighter(104);
     buttonColor.setAlphaF(qreal(0.8));
     const qreal ds = r/qreal(7.0);
@@ -306,7 +319,7 @@ void drawDial(const QStyleOptionSlider *option, QPainter *painter)
     dialGradient.setColorAt(0, buttonColor.darker(110));
     if (penSize > 3.0) {
         painter->setPen(QPen(QColor(0, 0, 0, 25), penSize));
-        painter->drawLine(calcRadialPos(option, qreal(0.90)), calcRadialPos(option, qreal(0.96)));
+        painter->drawLine(origin + calcRadialPos(option, qreal(0.90)), origin + calcRadialPos(option, qreal(0.96)));
     }
 
     painter->setBrush(dialGradient);
@@ -389,6 +402,87 @@ QWindow *styleObjectWindow(QObject *so)
         return so->property("_q_styleObjectWindow").value<QWindow *>();
 
     return nullptr;
+}
+
+qreal cacheDpr(const QPainter *painter)
+{
+    const QPaintDevice *device = painter ? painter->device() : nullptr;
+    const qreal dpr = device ? device->devicePixelRatio() : 1.0;
+    return dpr > 0.0 ? dpr : 1.0;
+}
+
+QPixmap styleCachePixmap(const QSize &size, qreal dpr)
+{
+    if (size.isEmpty())
+        return QPixmap();
+    QPixmap pixmap(size * dpr);
+    pixmap.setDevicePixelRatio(dpr);
+    pixmap.fill(Qt::transparent);
+    return pixmap;
+}
+
+QRect tabBarScrollButtonRect(const QStyle *style, QStyle::SubElement element,
+                             const QStyleOption *option, const QWidget *widget)
+{
+    const QRect r = option->rect;
+    const bool vertical = r.width() < r.height();
+    const int width = style->pixelMetric(QStyle::PM_TabBarScrollButtonWidth, nullptr, widget);
+    const int overlap = style->pixelMetric(QStyle::PM_TabBar_ScrollButtonOverlap, nullptr, widget);
+    if (element == QStyle::SE_TabBarScrollLeftButton) {
+        if (vertical)
+            return QRect(0, r.height() - width * 2 + overlap, r.width(), width);
+        return QStyle::visualRect(option->direction, r,
+                                  QRect(r.width() - width * 2 + overlap, 0, width, r.height()));
+    }
+    if (vertical)
+        return QRect(0, r.height() - width, r.width(), width);
+    return QStyle::visualRect(option->direction, r, QRect(r.width() - width, 0, width, r.height()));
+}
+
+std::optional<QStyleOptionSlider> sanitizedScrollBar(QStyle::ComplexControl control,
+                                                     const QStyleOptionComplex *option)
+{
+    if (control != QStyle::CC_ScrollBar)
+        return std::nullopt;
+    const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option);
+    if (!slider)
+        return std::nullopt;
+    const qint64 span = std::max<qint64>(qint64(slider->maximum) - slider->minimum, 0);
+    const qint64 maxPageStep = qint64(UINT_MAX) - span;
+    if (slider->pageStep >= 0 && slider->maximum >= slider->minimum && slider->pageStep <= maxPageStep)
+        return std::nullopt;
+    QStyleOptionSlider fixed = *slider;
+    fixed.maximum = std::max(fixed.maximum, fixed.minimum);
+    fixed.pageStep = int(std::clamp<qint64>(fixed.pageStep, 0, maxPageStep));
+    return fixed;
+}
+
+int boundedTickInterval(int minimum, int maximum, int interval, int available)
+{
+    if (interval <= 0)
+        interval = 1;
+    const qint64 span = qint64(maximum) - qint64(minimum);
+    if (span <= 0)
+        return interval;
+    const qint64 limit = std::max(available, 1);
+    const qint64 ticks = span / interval;
+    if (ticks <= limit)
+        return interval;
+    const qint64 factor = (ticks + limit - 1) / limit;
+    return int(std::min<qint64>(qint64(interval) * factor, INT_MAX));
+}
+
+int effectiveTickInterval(const QStyleOptionSlider &slider, int available, int travel)
+{
+    int interval = slider.tickInterval;
+    if (interval <= 0) {
+        interval = slider.singleStep;
+        if (QStyle::sliderPositionFromValue(slider.minimum, slider.maximum, interval, available)
+                - QStyle::sliderPositionFromValue(slider.minimum, slider.maximum, 0, available)
+            < 3)
+            interval = slider.pageStep;
+    }
+    return boundedTickInterval(slider.minimum, slider.maximum, interval, travel);
 }
 
 }

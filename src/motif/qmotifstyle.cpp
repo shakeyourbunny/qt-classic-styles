@@ -44,6 +44,7 @@
 // License unchanged from the Qt original above: LGPL-2.1 (Digia Qt LGPL Exception).
 
 #include "qmotifstyle.h"
+#include "qstylehelper_p.h"
 
 #include "qmenu.h"
 #include "qapplication.h"
@@ -907,6 +908,7 @@ void QMotifStyle::drawControl(ControlElement element, const QStyleOption *opt, Q
             }
             break;
         }
+        break;
 
 #ifndef QT_NO_TABBAR
     case CE_TabBarTabShape:
@@ -1000,6 +1002,7 @@ void QMotifStyle::drawControl(ControlElement element, const QStyleOption *opt, Q
                 QCommonStyle::drawControl(element, opt, p, widget);
             }
             break; }
+        break;
 #endif // QT_NO_TABBAR
     case CE_ProgressBarGroove:
         qDrawShadePanel(p, opt->rect, opt->palette, true, 2);
@@ -1057,6 +1060,7 @@ void QMotifStyle::drawControl(ControlElement element, const QStyleOption *opt, Q
             p->setTransform(oldMatrix, false);
             break;
         }
+        break;
 
     case CE_MenuTearoff: {
         if (opt->state & State_Selected) {
@@ -1225,6 +1229,7 @@ void QMotifStyle::drawControl(ControlElement element, const QStyleOption *opt, Q
                 proxy()->drawPrimitive(arrow, &arrowOpt, p, widget);
             }
             break; }
+        break;
 
     case CE_MenuBarItem:
         if (opt->state & State_Selected)  // active item
@@ -1288,16 +1293,22 @@ void QMotifStyle::drawControl(ControlElement element, const QStyleOption *opt, Q
                 reverse = !reverse;
             int w = rect.width();
             if (pb->minimum == 0 && pb->maximum == 0) {
-                QRect progressBar;
-                 // draw busy indicator
-                 int x = (animateStep*8)% (w * 2);
-                 if (x > w)
-                     x = 2 * w - x;
-                 x = reverse ? rect.right() - x : x + rect.x();
-                 p->setTransform(m, true);
-                 p->setPen(QPen(pal2.highlight().color(), 4));
-                 p->drawLine(x, rect.y(), x, rect.height());
-
+                // A bar narrower than its frame has no room for the indicator,
+                // and the modulo below would divide by zero.
+                if (w > 0) {
+                    // 64-bit: w * 2 and animateStep * 8 overflow an int for huge rects and long uptimes.
+                    const qint64 period = qint64(w) * 2;
+                    qint64 bounce = (qint64(animateStep) * 8) % period;
+                    if (bounce > w)
+                        bounce = period - bounce;
+                    int x = int(bounce);
+                    x = reverse ? rect.right() - x : x + rect.x();
+                    p->save();
+                    p->setTransform(m, true);
+                    p->setPen(QPen(pal2.highlight().color(), 4));
+                    p->drawLine(x, rect.y(), x, rect.height());
+                    p->restore();
+                }
             } else
                 QCommonStyle::drawControl(element, opt, p, widget);
         }
@@ -1533,7 +1544,37 @@ void QMotifStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComple
                 tmpSlider.subControls = SC_SliderTickmarks;
                 int frameWidth = proxy()->pixelMetric(PM_DefaultFrameWidth);
                 tmpSlider.rect.translate(frameWidth - 1, 0);
-                QCommonStyle::drawComplexControl(cc, &tmpSlider, p, widget);
+                // Drawn here, not by QCommonStyle: its loop tests maximum + 1,
+                // which overflows at INT_MAX and draws nothing.
+                const int tickOffset = proxy()->pixelMetric(PM_SliderTickmarkOffset, &tmpSlider, widget);
+                const int thickness = proxy()->pixelMetric(PM_SliderControlThickness, &tmpSlider, widget);
+                const int len = proxy()->pixelMetric(PM_SliderLength, &tmpSlider, widget);
+                const int available = proxy()->pixelMetric(PM_SliderSpaceAvailable, &tmpSlider, widget);
+                const int interval = ClassicStyleHelper::effectiveTickInterval(tmpSlider, available, available);
+                const QRect &r = tmpSlider.rect;
+                p->save();
+                p->translate(r.topLeft());
+                p->setPen(tmpSlider.palette.windowText().color());
+                const qint64 last = qint64(tmpSlider.maximum) + 1;
+                for (qint64 v = tmpSlider.minimum; v <= last; v += interval) {
+                    if (v == last && interval == 1)
+                        break;
+                    const int value = int(qMin<qint64>(v, tmpSlider.maximum));
+                    const int pos = sliderPositionFromValue(tmpSlider.minimum, tmpSlider.maximum,
+                                                            value, available) + len / 2;
+                    if (tmpSlider.orientation == Qt::Horizontal) {
+                        if (tmpSlider.tickPosition & QSlider::TicksAbove)
+                            p->drawLine(pos, 0, pos, tickOffset - 2);
+                        if (tmpSlider.tickPosition & QSlider::TicksBelow)
+                            p->drawLine(pos, tickOffset + thickness + 1, pos, r.height() - 1);
+                    } else {
+                        if (tmpSlider.tickPosition & QSlider::TicksAbove)
+                            p->drawLine(0, pos, tickOffset - 2, pos);
+                        if (tmpSlider.tickPosition & QSlider::TicksBelow)
+                            p->drawLine(tickOffset + thickness + 1, pos, r.width() - 1, pos);
+                    }
+                }
+                p->restore();
             }
         }
         break;
@@ -1733,6 +1774,8 @@ QRect
 QMotifStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex *opt,
                             SubControl sc, const QWidget *widget) const
 {
+    if (const auto fixed = ClassicStyleHelper::sanitizedScrollBar(cc, opt))
+        return subControlRect(cc, &*fixed, sc, widget);
     switch (cc) {
 #ifndef QT_NO_SPINBOX
     case CC_SpinBox:
@@ -1774,6 +1817,7 @@ QMotifStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex *opt,
                 break;
             }
             break; }
+        break;
 #endif // QT_NO_SPINBOX
 #ifndef QT_NO_SLIDER
     case CC_Slider:
@@ -1939,6 +1983,8 @@ QMotifStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt,
 QRect
 QMotifStyle::subElementRect(SubElement sr, const QStyleOption *opt, const QWidget *widget) const
 {
+    if (!widget && (sr == SE_TabBarScrollLeftButton || sr == SE_TabBarScrollRightButton))
+        return ClassicStyleHelper::tabBarScrollButtonRect(proxy(), sr, opt, widget);
     QRect rect;
 
     switch (sr) {

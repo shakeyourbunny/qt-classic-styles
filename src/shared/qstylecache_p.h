@@ -65,40 +65,31 @@ QT_BEGIN_NAMESPACE
 // We mean it.
 //
 
-inline QImage styleCacheImage(const QSize &size)
-{
-    return QImage(size, QImage::Format_ARGB32_Premultiplied);
-}
-
-inline QPixmap styleCachePixmap(const QSize &size)
-{
-    return QPixmap(size);
-}
-
+// Caches the element at the painter's device pixel ratio. An empty rect is
+// drawn directly: there is nothing to cache and no pixmap to paint into.
 #define BEGIN_STYLE_PIXMAPCACHE(a) \
     QRect rect = option->rect; \
     QPixmap internalPixmapCache; \
-    QImage imageCache; \
     QPainter *p = painter; \
-    QString unique = QStyleHelper::uniqueName((a), option, option->rect.size()); \
-    int txType = painter->deviceTransform().type() | painter->worldTransform().type(); \
-    bool doPixmapCache = (txType <= QTransform::TxTranslate) \
-            || (painter->deviceTransform().type() == QTransform::TxScale); \
+    const qreal cachePixelRatio = ClassicStyleHelper::cacheDpr(painter); \
+    const QString unique = ClassicStyleHelper::uniqueName((a), option, option->rect.size(), cachePixelRatio); \
+    const int txType = painter->deviceTransform().type() | painter->worldTransform().type(); \
+    const bool doPixmapCache = !option->rect.isEmpty() \
+            && ((txType <= QTransform::TxTranslate) \
+                || (painter->deviceTransform().type() == QTransform::TxScale)); \
     if (doPixmapCache && QPixmapCache::find(unique, &internalPixmapCache)) { \
         painter->drawPixmap(option->rect.topLeft(), internalPixmapCache); \
     } else { \
         if (doPixmapCache) { \
             rect.setRect(0, 0, option->rect.width(), option->rect.height()); \
-            imageCache = styleCacheImage(option->rect.size()); \
-            imageCache.fill(0); \
-            p = new QPainter(&imageCache); \
+            internalPixmapCache = ClassicStyleHelper::styleCachePixmap(option->rect.size(), cachePixelRatio); \
+            p = new QPainter(&internalPixmapCache); \
         }
 
 #define END_STYLE_PIXMAPCACHE \
         if (doPixmapCache) { \
             p->end(); \
             delete p; \
-            internalPixmapCache = QPixmap::fromImage(imageCache); \
             painter->drawPixmap(option->rect.topLeft(), internalPixmapCache); \
             QPixmapCache::insert(unique, internalPixmapCache); \
         } \
