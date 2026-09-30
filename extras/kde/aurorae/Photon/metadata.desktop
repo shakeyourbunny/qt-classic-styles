@@ -1,0 +1,12 @@
+# This file is part of the qt-classic-styles Project.
+# License: LGPL-2.1-or-later. Contact: qt-classic-styles-project@trinity2k.net
+#
+[Desktop Entry]
+Name=Photon
+Comment=QNX 6 Photon microGUI title bars, to go with the photon widget style
+X-KDE-PluginInfo-Author=qt-classic-styles project
+X-KDE-PluginInfo-Email=qt-classic-styles-project@trinity2k.net
+X-KDE-PluginInfo-Name=Photon
+X-KDE-PluginInfo-Version=0.1
+X-KDE-PluginInfo-License=LGPL-2.1-or-later
+X-KDE-PluginInfo-EnabledByDefault=true

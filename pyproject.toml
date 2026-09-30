@@ -1,0 +1,12 @@
+# This file is part of the qt-classic-styles Project.
+# License: LGPL-2.1-or-later. Contact: qt-classic-styles-project@trinity2k.net
+#
+# Python tooling only (the Aurorae theme generator); the styles build with CMake.
+
+[tool.pytest.ini_options]
+testpaths = ["tests/aurorae"]
+pythonpath = ["extras/kde/aurorae"]
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
