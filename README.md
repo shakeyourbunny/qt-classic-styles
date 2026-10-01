@@ -29,14 +29,17 @@ default for your whole desktop.
 
 Each style is shown with its own standard palette.
 
-| | |
+| Motif | CDE |
 |---|---|
 | ![Motif](docs/screenshots/motif.png) | ![CDE](docs/screenshots/cde.png) |
-| Motif | CDE |
-| ![Plastique](docs/screenshots/plastique.png) | ![Cleanlooks](docs/screenshots/cleanlooks.png) |
+
 | Plastique | Cleanlooks |
-| ![Photon](docs/screenshots/photon.png) | |
+|---|---|
+| ![Plastique](docs/screenshots/plastique.png) | ![Cleanlooks](docs/screenshots/cleanlooks.png) |
+
 | Photon | |
+|---|---|
+| ![Photon](docs/screenshots/photon.png) | ![](docs/screenshots/spacer.png) |
 
 Motif and CDE draw their 3D edges with the palette's light and dark shades,
 the way the originals did. On a very light grey desktop palette those edges
